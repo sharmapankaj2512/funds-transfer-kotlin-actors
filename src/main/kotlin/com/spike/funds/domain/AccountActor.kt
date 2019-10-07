@@ -1,5 +1,9 @@
 package com.spike.funds.domain
 
+import arrow.core.Failure
+import arrow.core.Success
+import arrow.core.Try
+import arrow.core.extensions.TryFunctor
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.SendChannel
@@ -10,12 +14,23 @@ class AccountActor(val openingBalance: Int = 0) {
     private val actor: SendChannel<Pair<AccountMessage, CompletableDeferred<Int>>> = GlobalScope.actor {
         var balance = openingBalance
 
-        fun debit(amount: Int) {
-            balance -= amount
+        fun debit(amount: Int): Try<Int> {
+            return Try {
+                require(balance >= amount)
+                balance -= amount
+                balance
+            }
         }
 
         fun credit(amount: Int) {
             balance += amount
+        }
+
+        fun completes(result: Try<Int>, response: CompletableDeferred<Int>) {
+            when (result) {
+                is Success -> response.complete(balance)
+                is Failure -> response.completeExceptionally(result.exception)
+            }
         }
 
         fun completes(response: CompletableDeferred<Int>) {
@@ -24,8 +39,8 @@ class AccountActor(val openingBalance: Int = 0) {
 
         for ((msg, response) in channel) when (msg) {
             is GetBalance -> completes(response)
-            is CreditAmount -> credit(msg.amount).also { completes(response) }
-            is DebitAmount -> debit(msg.amount).also { completes(response) }
+            is CreditAmount -> credit(msg.amount).let { completes(response) }
+            is DebitAmount -> completes(debit(msg.amount), response)
             is Transfer -> {
                 debit(msg.amount)
                 msg.target.send(CreditAmount(msg.amount), response)

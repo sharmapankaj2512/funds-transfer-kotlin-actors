@@ -3,6 +3,7 @@ package com.spike.funds
 import com.spike.funds.domain.Account
 import kotlinx.coroutines.*
 import org.junit.Test
+import java.lang.IllegalArgumentException
 import kotlin.test.assertEquals
 
 class AccountTest {
@@ -28,6 +29,13 @@ class AccountTest {
         assertEquals(0, balance)
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun shouldFailInvalidDebit() = runBlocking {
+        val account = Account(0)
+
+        val ignore = awaitAll(account.debit(10))
+    }
+
     @Test
     fun shouldTransfer() = runBlocking {
         val source = Account(10)
@@ -41,6 +49,10 @@ class AccountTest {
         assertEquals(0, sourceBalance)
         assertEquals(10, targetBalance)
     }
+
+    @Test fun shouldFailTransferOnInvalidCredit() {}
+
+    @Test fun shouldFailTransferOnInvalidDebit() {}
 
     @Test
     fun shouldMakeConcurrentTransfers() = runBlocking {
