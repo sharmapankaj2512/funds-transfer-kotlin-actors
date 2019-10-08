@@ -42,8 +42,10 @@ class AccountActor(val openingBalance: Int = 0) {
             is CreditAmount -> credit(msg.amount).let { completes(response) }
             is DebitAmount -> completes(debit(msg.amount), response)
             is Transfer -> {
-                debit(msg.amount)
-                msg.target.send(CreditAmount(msg.amount), response)
+                when (val result = debit(msg.amount)) {
+                    is Success -> msg.target.send(CreditAmount(msg.amount), response)
+                    is Failure -> response.completeExceptionally(result.exception)
+                }
             }
         }
     }
