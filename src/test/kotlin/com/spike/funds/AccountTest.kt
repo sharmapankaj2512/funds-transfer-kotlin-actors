@@ -49,6 +49,14 @@ class AccountTest {
 
     @Test
     fun shouldFailTransferOnInvalidCredit() = runBlocking {
+        val source = Account(10)
+        val target = Account(0)
+
+        val result = Try { source.transferTo(target, -1).await() }
+
+        assertTrue(result.isFailure())
+        assertEquals(10, source.balance().await())
+        assertEquals(0, target.balance().await())
     }
 
     @Test
