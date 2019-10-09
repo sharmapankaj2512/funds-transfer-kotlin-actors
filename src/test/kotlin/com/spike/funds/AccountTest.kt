@@ -1,6 +1,6 @@
 package com.spike.funds
 
-import arrow.core.Try
+import arrow.core.Either
 import com.spike.funds.domain.Account
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
@@ -52,9 +52,9 @@ class AccountTest {
         val source = Account(10)
         val target = Account(0)
 
-        val result = Try { source.transferTo(target, -1).await() }
+        val result = Either.catch { source.transferTo(target, -1).await() }
 
-        assertTrue(result.isFailure())
+        assertTrue(result.isLeft())
         assertEquals(10, source.balance().await())
         assertEquals(0, target.balance().await())
     }
@@ -64,9 +64,9 @@ class AccountTest {
         val source = Account(10)
         val target = Account(0)
 
-        val result = Try { source.transferTo(target, 20).await() }
+        val result = Either.catch { source.transferTo(target, 20).await() }
 
-        assertTrue(result.isFailure())
+        assertTrue(result.isLeft())
         assertEquals(10, source.balance().await())
         assertEquals(0, target.balance().await())
     }
