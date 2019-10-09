@@ -3,10 +3,8 @@ package com.spike.funds.domain
 import arrow.core.Failure
 import arrow.core.Success
 import arrow.core.Try
-import arrow.core.extensions.TryFunctor
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.actor
 import java.lang.IllegalArgumentException
@@ -45,20 +43,32 @@ class AccountActor(val openingBalance: Int = 0) {
             response.complete(balance)
         }
 
+        suspend fun transfer(target: AccountActor, amount: Int, response: CompletableDeferred<Int>) {
+            target.send(TransferApproved(self, amount), response)
+        }
+
+        suspend fun revert(source: AccountActor, amount: Int, response: CompletableDeferred<Int>) {
+            source.send(RevertDebit(-1 * amount), response)
+        }
+
+        fun abort(response: CompletableDeferred<Int>, throwable: Throwable) {
+            response.completeExceptionally(throwable)
+        }
+
         for ((msg, response) in channel) when (msg) {
             is GetBalance -> completes(response)
             is CreditAmount -> completes(credit(msg.amount), response)
             is DebitAmount -> completes(debit(msg.amount), response)
-            is Transfer -> when (val result = debit(msg.amount)) {
-                is Success -> msg.target.send(TransferCredit(self, msg.amount), response)
-                is Failure -> response.completeExceptionally(result.exception)
+            is InitiateTransfer -> when (val result = debit(msg.amount)) {
+                is Success -> transfer(msg.target, msg.amount, response)
+                is Failure -> abort(response, result.exception)
             }
-            is TransferCredit -> when (credit(msg.amount)) {
+            is TransferApproved -> when (credit(msg.amount)) {
                 is Success -> completes(response)
-                is Failure -> msg.source.send(RevertDebit(-1 * msg.amount), response)
+                is Failure -> revert(msg.source, msg.amount, response)
             }
             is RevertDebit -> debit(msg.amount).also {
-                response.completeExceptionally(IllegalArgumentException())
+                abort(response, IllegalArgumentException())
             }
         }
     }
@@ -76,6 +86,6 @@ sealed class AccountMessage
 class CreditAmount(val amount: Int) : AccountMessage()
 class DebitAmount(val amount: Int) : AccountMessage()
 object GetBalance : AccountMessage()
-class Transfer(val target: AccountActor, val amount: Int) : AccountMessage()
-class TransferCredit(val source: AccountActor, val amount: Int) : AccountMessage()
+class InitiateTransfer(val target: AccountActor, val amount: Int) : AccountMessage()
+class TransferApproved(val source: AccountActor, val amount: Int) : AccountMessage()
 class RevertDebit(val amount: Int) : AccountMessage()

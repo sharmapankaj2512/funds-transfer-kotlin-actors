@@ -18,6 +18,6 @@ class Account(balance: Int = 0) {
     }
 
     suspend fun transferTo(target: Account, amount: Int): CompletableDeferred<Int> {
-        return actor.send(Transfer(target.actor, amount))
+        return actor.send(InitiateTransfer(target.actor, amount))
     }
 }
